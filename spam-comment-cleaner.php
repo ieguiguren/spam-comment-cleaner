@@ -5,7 +5,7 @@
  * Version: 1.0.1
  * Author: Ivan Eguiguren
  * Text Domain: spam-comment-cleaner
- * GitHub Plugin URI: donosor00/spam-comment-cleaner
+ * GitHub Plugin URI: ieguiguren/spam-comment-cleaner
  * GitHub Branch: main
  */
 
