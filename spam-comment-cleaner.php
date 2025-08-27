@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Spam Comment Cleaner
  * Description: Remove spam comments containing specific URLs like shorturl.fm
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: Ivan Eguiguren
  * Text Domain: spam-comment-cleaner
  * GitHub Plugin URI: ieguiguren/spam-comment-cleaner
@@ -19,7 +19,7 @@ define('SCC_PLUGIN_FILE', __FILE__);
 define('SCC_PLUGIN_BASENAME', plugin_basename(__FILE__));
 define('SCC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SCC_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('SCC_PLUGIN_VERSION', '1.0.2');
+define('SCC_PLUGIN_VERSION', '1.0.3');
 define('SCC_GITHUB_REPO', 'donosor00/spam-comment-cleaner');
 
 class SpamCommentCleaner {
