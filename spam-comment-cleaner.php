@@ -2,15 +2,25 @@
 /**
  * Plugin Name: Spam Comment Cleaner
  * Description: Remove spam comments containing specific URLs like shorturl.fm
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: Ivan Eguiguren
  * Text Domain: spam-comment-cleaner
+ * GitHub Plugin URI: donosor00/spam-comment-cleaner
+ * GitHub Branch: main
  */
 
 // Prevent direct access
 if (!defined('ABSPATH')) {
     exit;
 }
+
+// Define plugin constants
+define('SCC_PLUGIN_FILE', __FILE__);
+define('SCC_PLUGIN_BASENAME', plugin_basename(__FILE__));
+define('SCC_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('SCC_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('SCC_PLUGIN_VERSION', '1.0.0');
+define('SCC_GITHUB_REPO', 'donosor00/spam-comment-cleaner');
 
 class SpamCommentCleaner {
     
@@ -25,6 +35,9 @@ class SpamCommentCleaner {
         add_action('admin_enqueue_scripts', [$this, 'enqueue_scripts']);
         add_action('wp_ajax_scc_scan_comments', [$this, 'ajax_scan_comments']);
         add_action('wp_ajax_scc_delete_comments', [$this, 'ajax_delete_comments']);
+        
+        // Initialize auto-updater
+        new SpamCommentCleanerUpdater();
     }
     
     public function add_admin_menu() {
@@ -48,7 +61,7 @@ class SpamCommentCleaner {
     public function admin_page() {
         ?>
         <div class="wrap">
-            <h1>Spam Comment Cleaner</h1>
+            <h1>Spam Comment Cleaner <small>v<?php echo SCC_PLUGIN_VERSION; ?></small></h1>
             
             <div class="notice notice-warning">
                 <p><strong>Warning:</strong> This tool will permanently delete comments. Make sure you have a backup of your database.</p>
@@ -257,6 +270,148 @@ class SpamCommentCleaner {
             'deleted' => $deleted_count,
             'total' => count($comment_ids)
         ]);
+    }
+}
+
+/**
+ * Auto-updater class for GitHub releases
+ */
+class SpamCommentCleanerUpdater {
+    
+    private $plugin_file;
+    private $plugin_basename;
+    private $version;
+    private $github_repo;
+    
+    public function __construct() {
+        $this->plugin_file = SCC_PLUGIN_FILE;
+        $this->plugin_basename = SCC_PLUGIN_BASENAME;
+        $this->version = SCC_PLUGIN_VERSION;
+        $this->github_repo = SCC_GITHUB_REPO;
+        
+        add_filter('pre_set_site_transient_update_plugins', [$this, 'check_for_update']);
+        add_filter('plugins_api', [$this, 'plugin_info'], 10, 3);
+        add_filter('upgrader_pre_download', [$this, 'download_package'], 10, 3);
+    }
+    
+    /**
+     * Check for plugin updates
+     */
+    public function check_for_update($transient) {
+        if (empty($transient->checked)) {
+            return $transient;
+        }
+        
+        // Get remote version
+        $remote_version = $this->get_remote_version();
+        
+        if (version_compare($this->version, $remote_version, '<')) {
+            $transient->response[$this->plugin_basename] = (object) [
+                'slug' => dirname($this->plugin_basename),
+                'plugin' => $this->plugin_basename,
+                'new_version' => $remote_version,
+                'url' => "https://github.com/{$this->github_repo}",
+                'package' => $this->get_download_url($remote_version),
+                'tested' => get_bloginfo('version')
+            ];
+        }
+        
+        return $transient;
+    }
+    
+    /**
+     * Get plugin information for update popup
+     */
+    public function plugin_info($result, $action, $args) {
+        if ($action !== 'plugin_information' || $args->slug !== dirname($this->plugin_basename)) {
+            return $result;
+        }
+        
+        $remote_version = $this->get_remote_version();
+        $release_info = $this->get_release_info($remote_version);
+        
+        return (object) [
+            'name' => 'Spam Comment Cleaner',
+            'slug' => dirname($this->plugin_basename),
+            'version' => $remote_version,
+            'author' => 'Ivan Eguiguren',
+            'homepage' => "https://github.com/{$this->github_repo}",
+            'short_description' => 'Remove spam comments containing specific URLs',
+            'sections' => [
+                'description' => 'A WordPress plugin to efficiently identify and remove spam comments containing specific URL patterns.',
+                'changelog' => $release_info['changelog'] ?? 'Bug fixes and improvements.'
+            ],
+            'download_link' => $this->get_download_url($remote_version),
+            'requires' => '4.0',
+            'tested' => get_bloginfo('version'),
+            'requires_php' => '5.6'
+        ];
+    }
+    
+    /**
+     * Download package from GitHub
+     */
+    public function download_package($reply, $package, $upgrader) {
+        if (strpos($package, 'github.com') !== false && strpos($package, $this->github_repo) !== false) {
+            $package = $this->get_download_url($this->get_remote_version());
+        }
+        
+        return $reply;
+    }
+    
+    /**
+     * Get remote version from GitHub API
+     */
+    private function get_remote_version() {
+        $request = wp_remote_get("https://api.github.com/repos/{$this->github_repo}/releases/latest", [
+            'timeout' => 10,
+            'headers' => [
+                'Accept' => 'application/vnd.github.v3+json',
+                'User-Agent' => 'WordPress/' . get_bloginfo('version')
+            ]
+        ]);
+        
+        if (is_wp_error($request) || wp_remote_retrieve_response_code($request) !== 200) {
+            return $this->version;
+        }
+        
+        $body = json_decode(wp_remote_retrieve_body($request), true);
+        
+        if (isset($body['tag_name'])) {
+            return ltrim($body['tag_name'], 'v');
+        }
+        
+        return $this->version;
+    }
+    
+    /**
+     * Get release information
+     */
+    private function get_release_info($version) {
+        $request = wp_remote_get("https://api.github.com/repos/{$this->github_repo}/releases/tags/v{$version}", [
+            'timeout' => 10,
+            'headers' => [
+                'Accept' => 'application/vnd.github.v3+json',
+                'User-Agent' => 'WordPress/' . get_bloginfo('version')
+            ]
+        ]);
+        
+        if (is_wp_error($request) || wp_remote_retrieve_response_code($request) !== 200) {
+            return [];
+        }
+        
+        $body = json_decode(wp_remote_retrieve_body($request), true);
+        
+        return [
+            'changelog' => $body['body'] ?? 'Bug fixes and improvements.'
+        ];
+    }
+    
+    /**
+     * Get download URL for specific version
+     */
+    private function get_download_url($version) {
+        return "https://github.com/{$this->github_repo}/archive/v{$version}.zip";
     }
 }
 

@@ -1,0 +1,69 @@
+# .github/workflows/release.yml
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Create plugin ZIP
+      run: |
+        # Create a clean directory for the plugin
+        mkdir spam-comment-cleaner
+        
+        # Copy plugin files (exclude development files)
+        cp spam-comment-cleaner.php spam-comment-cleaner/
+        cp README.md spam-comment-cleaner/
+        
+        # Create ZIP file
+        zip -r spam-comment-cleaner.zip spam-comment-cleaner/
+        
+    - name: Get release info
+      id: release_info
+      run: |
+        # Extract version from tag
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+        # Get latest commit message as release notes
+        COMMIT_MSG=$(git log -1 --pretty=%B)
+        echo "notes=$COMMIT_MSG" >> $GITHUB_OUTPUT
+        
+    - name: Create Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ steps.release_info.outputs.version }}
+        body: |
+          ## Changes in version ${{ steps.release_info.outputs.version }}
+          
+          ${{ steps.release_info.outputs.notes }}
+          
+          ### Installation
+          1. Download the `spam-comment-cleaner.zip` file below
+          2. Go to WordPress Admin > Plugins > Add New > Upload Plugin
+          3. Select the ZIP file and install
+          4. Activate the plugin
+          
+        draft: false
+        prerelease: false
+        
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./spam-comment-cleaner.zip
+        asset_name: spam-comment-cleaner.zip
+        asset_content_type: application/zip
